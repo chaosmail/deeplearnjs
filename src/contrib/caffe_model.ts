@@ -45,6 +45,14 @@ export class CaffeModel implements Model {
    */
   private caffemodel: caffe.NetParameter;
 
+  /**
+   * Parsed .prototxt
+   * The .prototxt file contains the model definition and parameters
+   * after a specific phase (train, test).
+   * @type {caffe.NetParameter}
+   */
+  private prototxt: caffe.NetParameter;
+
   constructor(private caffemodelUrl: string){}
 
   /**
@@ -63,6 +71,19 @@ export class CaffeModel implements Model {
 
         // Store the preprocessing parameters
         this.preprocessOffset = caffe_util.getPreprocessOffset(model);
+      });
+  }
+
+  /**
+   * Load the .prototxt file and parse it into the model
+   */
+  loadProto(url: string) {
+    return caffe_util.fetchText(url)
+      .then(caffe_util.parsePrototxt)
+      .then((model) => {
+
+        // Store the prototxt for debugging
+        this.prototxt = model;
       });
   }
 

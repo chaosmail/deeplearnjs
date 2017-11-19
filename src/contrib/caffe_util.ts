@@ -16,6 +16,7 @@
  */
 
 import {caffe} from './caffe/caffe.js';
+import * as caffe_parser from './caffe_parser';
 import {Array1D, NDArray} from '../math/ndarray';
 
 export function fetchText(uri: string) : Promise<string> {
@@ -28,6 +29,12 @@ export function fetchArrayBuffer(uri: string) : Promise<ArrayBuffer> {
 
 export function parseCaffeModel(data: ArrayBuffer) {
   return caffe.NetParameter.decode(new Uint8Array(data));
+}
+
+export function parsePrototxt(data: string) {
+  const params = <any> caffe_parser.parsePrototxt(data);
+  console.log(params);
+  return caffe.NetParameter.create(params);
 }
 
 // tslint:disable-next-line:max-line-length
