@@ -60,7 +60,7 @@ export class CaffeModel implements Model {
   }
 
   /**
-   * Manually set the preprocessing offset
+   * Set the preprocessing offset
    * @param offset training mean
    */
   setPreprocessOffset(offset: Array1D | Array3D) {
@@ -68,11 +68,27 @@ export class CaffeModel implements Model {
   }
 
   /**
-   * Manually set the preprocessing dimensions
+   * Set the preprocessing dimensions
    * @param dim height/width of the input dimension
    */
   setPreprocessDim(dim: number) {
     this.preprocessDim = dim;
+  }
+
+  /**
+   * Set the nodes of the model graph
+   * @param nodes array of nodes
+   */
+  setNodes(nodes: dag.INode<caffe.ILayerParameter>[]) {
+    this.nodes = nodes;
+  }
+
+  /**
+   * Set the edges of the model graph
+   * @param edges array of edges
+   */
+  setEdges(edges: dag.IEdge[]) {
+    this.edges = edges;
   }
 
   /**
@@ -108,13 +124,13 @@ export class CaffeModel implements Model {
         // read the cropping dimensions
         const dim = getPreprocessDim(model);
         if (dim) {
-          this.preprocessDim = dim;
+          this.setPreprocessDim(dim);
         }
 
         // read the training mean
         const offset = getPreprocessOffset(model);
         if (offset) {
-          this.preprocessOffset = offset as Array1D;
+          this.setPreprocessOffset(offset as Array1D);
         }
       });
   }
@@ -126,8 +142,8 @@ export class CaffeModel implements Model {
     return util.fetchText(uri)
       .then(util.parsePrototxt)
       .then((model) => {
-        this.edges = layersToDagEdges(model);
-        this.nodes = layersToDagNodes(model);
+        this.setEdges(layersToDagEdges(model));
+        this.setNodes(layersToDagNodes(model));
       });
   }
 
@@ -139,8 +155,7 @@ export class CaffeModel implements Model {
       .then(util.parseBlob)
       .then((trainingMean) => {
         const offset: NDArray = convBlobToNDArray(trainingMean);
-        const offset3D: Array3D = offset.as3D(offset.shape[0], offset.shape[1], offset.shape[2]);
-        this.preprocessOffset = offset3D;
+        this.setPreprocessOffset(offset.as3D(offset.shape[0], offset.shape[1], offset.shape[2]));
       });
   }
 
@@ -156,10 +171,12 @@ export class CaffeModel implements Model {
       (layer: caffe.ILayerParameter, parents: caffe.ILayerParameter[], i: number, depth: number) => {
 
         if (i === 0) {
+          currAct = (currAct as Array3D).asType('float32');
+
           if (this.preprocessDim) {
             currAct = math.resizeBilinear3D(currAct as Array3D, [this.preprocessDim, this.preprocessDim]);
           }
-          if (this.preprocessOffset) {
+          if (this.preprocessOffset && this.preprocessOffset.dataSync().length > 0) {
             currAct = math.subtract(currAct as Array3D, this.preprocessOffset) as Array3D;
           }
         }
@@ -173,6 +190,7 @@ export class CaffeModel implements Model {
         currAct = performMathOp(math, currAct, layer, this.variables[`${layer.name}`]);
 
         namedActivations[layer.name] = currAct as NDArray;
+        console.log(layer.name, currAct.data());
 
       }, untilLayer);
 
