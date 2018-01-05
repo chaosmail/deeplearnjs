@@ -7,7 +7,7 @@
   "types": "dist/node/index.d.ts",
   "dependencies": {
     "caffe-proto": "^0.1.0",
-    "dag-iterator": "^0.2.2",
+    "dag-iterator": "^0.3.0",
     "deeplearn": "file:///home/ckoerner/software/deeplearnjs",
     "prototxt-parser": "^0.1.4"
   },

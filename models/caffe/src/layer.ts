@@ -1,5 +1,5 @@
-import {caffe} from 'caffe-proto';
-import {Array1D, Array3D, Array4D, NDArray, NDArrayMath} from 'deeplearn';
+import { caffe } from 'caffe-proto';
+import { Array1D, Array3D, Array4D, NDArray, NDArrayMath } from 'deeplearn';
 
 // tslint:disable-next-line:max-line-length
 export function getLayersFromModel(model: caffe.NetParameter): caffe.IV0LayerParameter[] | caffe.IV1LayerParameter[] {
@@ -7,12 +7,12 @@ export function getLayersFromModel(model: caffe.NetParameter): caffe.IV0LayerPar
     : model.layers as caffe.IV1LayerParameter[];
 }
 
-function getNumericParam(param: number|number[], def: number) {
+function getNumericParam(param: number | number[], def: number) {
   var p = Array.isArray(param) ? param[0] : param;
   return p || def;
 }
 
-function getPoolType(poolType: string|number): number {
+function getPoolType(poolType: string | number): number {
   let finalPoolType;
   if (typeof poolType == "number") {
     return finalPoolType;
@@ -31,9 +31,9 @@ function getPoolType(poolType: string|number): number {
   }
 }
 
-export function performMathOp(math: NDArrayMath, input: NDArray|NDArray[],
-    layer: caffe.ILayerParameter, blobs?: NDArray[]) : NDArray {
-  
+export function performMathOp(math: NDArrayMath, input: NDArray | NDArray[],
+  layer: caffe.ILayerParameter, blobs?: NDArray[]): NDArray {
+
   switch (layer.type.toLowerCase()) {
     case 'input':
     case 'dropout':
@@ -67,15 +67,7 @@ export function performMathOp(math: NDArrayMath, input: NDArray|NDArray[],
         // Workaround until biasTerm = false is supported in math.conv2d
         : Array1D.zeros([weights.shape[weights.shape.length - 1]]);
 
-       try {
-          return math.conv2d(input as Array3D, weights, bias, stride, pad);
-        }
-        catch(err) {
-          // https://github.com/BVLC/caffe/issues/1318
-          // https://github.com/BVLC/caffe/issues/4252
-          console.warn(err);
-          return math.conv2d(input as Array3D, weights, bias, stride, 'valid');
-        }
+      return math.conv2d(input as Array3D, weights, bias, stride, pad, 'round');
     }
 
     case 'pool':
@@ -91,27 +83,11 @@ export function performMathOp(math: NDArrayMath, input: NDArray|NDArray[],
 
       switch (getPoolType(poolingParam.pool)) {
         case caffe.PoolingParameter.PoolMethod.MAX:
-          try {
-            return math.maxPool(input as Array3D, kernelSize, stride, pad);
-          }
-          catch(err) {
-            // https://github.com/BVLC/caffe/issues/1318
-            // https://github.com/BVLC/caffe/issues/4252
-            console.warn(err);
-            return math.maxPool(input as Array3D, kernelSize, stride, 'valid');
-          }
-        
+          return math.maxPool(input as Array3D, kernelSize, stride, pad, 'ceil');
+
         case caffe.PoolingParameter.PoolMethod.AVE:
-          try {
-            return math.avgPool(input as Array3D, kernelSize, stride, pad);
-          }
-          catch(err) {
-            // https://github.com/BVLC/caffe/issues/1318
-            // https://github.com/BVLC/caffe/issues/4252
-            console.warn(err);
-            return math.avgPool(input as Array3D, kernelSize, stride, 'valid');
-          }
-        
+          return math.avgPool(input as Array3D, kernelSize, stride, pad, 'ceil');
+
         default:
           throw TypeError(`Pooling type ${poolingParam.pool} is not implemented`);
       }
@@ -144,7 +120,7 @@ export function performMathOp(math: NDArrayMath, input: NDArray|NDArray[],
         const bias = blobs[1] as Array3D;
         out = math.add(out as Array3D, bias);
       }
-        
+
       return out;
     }
 
@@ -163,7 +139,7 @@ export function performMathOp(math: NDArrayMath, input: NDArray|NDArray[],
       }
       return out;
     }
-    
+
     default:
       console.debug(layer);
       throw TypeError(`Layer type ${layer.type} is not implemented`);

@@ -15,26 +15,26 @@
  * =============================================================================
  */
 import * as util from './util';
-import {layersToDagEdges, layersToDagNodes} from './dag';
-import {getAllVariables, getPreprocessOffset, getPreprocessDim, convBlobToNDArray} from './blob';
-import {performMathOp} from './layer';
+import { layersToDagEdges, layersToDagNodes } from './dag';
+import { getAllVariables, getPreprocessOffset, getPreprocessDim, convBlobToNDArray } from './blob';
+import { performMathOp } from './layer';
 
-import {caffe} from 'caffe-proto';
+import { caffe } from 'caffe-proto';
 import * as dag from 'dag-iterator';
-import {Model, Array1D, Array3D, NDArray, ENV} from 'deeplearn';
+import { Model, Array1D, Array3D, NDArray, ENV } from 'deeplearn';
 
 export class CaffeModel implements Model {
 
   /**
    * Model weights per layer
    */
-  protected variables: {[varName: string]: NDArray[]};
+  protected variables: { [varName: string]: NDArray[] };
 
   /**
    * Preprocessing Offset
    */
-  protected preprocessOffset: Array1D|Array3D;
-  
+  protected preprocessOffset: Array1D | Array3D;
+
   /**
    * Preprocessing Dimensions
    */
@@ -44,7 +44,7 @@ export class CaffeModel implements Model {
    * Model DAG Nodes
    */
   private nodes: dag.INode<caffe.ILayerParameter>[];
-  
+
   /**
    * Model DAG Edges
    */
@@ -53,17 +53,17 @@ export class CaffeModel implements Model {
   /**
    * Constructor
    * @param caffemodelUrl url to the caffemodel file
-   * @param prototxtUrl url to the prototxt file 
+   * @param prototxtUrl url to the prototxt file
    */
   constructor(
-    private caffemodelUrl: string, private prototxtUrl: string, private meanBinaryprotoUrl?: string){
+    private caffemodelUrl: string, private prototxtUrl: string, private meanBinaryprotoUrl?: string) {
   }
 
   /**
    * Manually set the preprocessing offset
    * @param offset training mean
    */
-  setPreprocessOffset(offset: Array1D|Array3D) {
+  setPreprocessOffset(offset: Array1D | Array3D) {
     this.preprocessOffset = offset;
   }
 
@@ -149,32 +149,32 @@ export class CaffeModel implements Model {
     const math = ENV.math;
 
     // Keep a map of named activations for rendering purposes.
-    const namedActivations: {[key: string]: NDArray} = {};
+    const namedActivations: { [key: string]: NDArray } = {};
     let currAct: NDArray | NDArray[] = input;
- 
-    dag.iterate<caffe.ILayerParameter>(this.nodes, this.edges,
-        (layer: caffe.ILayerParameter, parents: caffe.ILayerParameter[], i: number) => {
 
-      if (i === 0) {
-        if (this.preprocessDim) {
-          currAct = math.resizeBilinear3D(currAct as Array3D, [this.preprocessDim, this.preprocessDim]);
+    dag.iterateDfs<caffe.ILayerParameter>(this.nodes, this.edges,
+      (layer: caffe.ILayerParameter, parents: caffe.ILayerParameter[], i: number, depth: number) => {
+
+        if (i === 0) {
+          if (this.preprocessDim) {
+            currAct = math.resizeBilinear3D(currAct as Array3D, [this.preprocessDim, this.preprocessDim]);
+          }
+          if (this.preprocessOffset) {
+            currAct = math.subtract(currAct as Array3D, this.preprocessOffset) as Array3D;
+          }
         }
-        if (this.preprocessOffset) {
-          currAct = math.subtract(currAct as Array3D, this.preprocessOffset) as Array3D;
+        else if (parents.length === 1) {
+          currAct = namedActivations[parents[0].name];
         }
-      }
-      else if (parents.length === 1) {
-        currAct = namedActivations[parents[0].name];
-      }
-      else if (parents.length > 1) {
-        currAct = parents.map((d) => namedActivations[d.name]);
-      }
+        else if (parents.length > 1) {
+          currAct = parents.map((d) => namedActivations[d.name]);
+        }
 
-      currAct = performMathOp(math, currAct, layer, this.variables[`${layer.name}`]);
+        currAct = performMathOp(math, currAct, layer, this.variables[`${layer.name}`]);
 
-      namedActivations[layer.name] = currAct as NDArray;
+        namedActivations[layer.name] = currAct as NDArray;
 
-    }, untilLayer);
+      }, untilLayer);
 
     return currAct;
   }
