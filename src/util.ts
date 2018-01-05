@@ -79,6 +79,13 @@ export function assertShapesMatch(
       errorMessagePrefix + `Shapes ${shapeA} and ${shapeB} must match`);
 }
 
+export function assertTypesMatch(a: NDArray, b: NDArray): void {
+  assert(
+      a.dtype === b.dtype,
+      `The dtypes of the first (${a.dtype}) and ` +
+          `second (${b.dtype}) input must match`);
+}
+
 // tslint:disable-next-line:no-any
 export function flatten(
     arr: number|boolean|RegularArray<number>|RegularArray<boolean>,
@@ -264,13 +271,11 @@ export function inferFromImplicitShape(
   return newShape;
 }
 
-export type DType = 'float32'|'int32'|'bool';
-
 export const NAN_INT32 = 1 << 31;
 export const NAN_BOOL = 255;
 export const NAN_FLOAT32 = NaN;
 
-export function getNaN(dtype: DType): number {
+export function getNaN(dtype: DataType): number {
   if (dtype === 'float32') {
     return NAN_FLOAT32;
   } else if (dtype === 'int32') {
@@ -282,7 +287,7 @@ export function getNaN(dtype: DType): number {
   }
 }
 
-export function isValNaN(val: number, dtype: DType): boolean {
+export function isValNaN(val: number, dtype: DataType): boolean {
   if (isNaN(val)) {
     return true;
   }
@@ -370,4 +375,21 @@ export function unflattenToNameArrayMap(
     result[keys[i]] = flatArrays[i];
   }
   return result;
+}
+
+/**
+ * Returns true if the new type can't encode the old type without loss of
+ * precision.
+ */
+export function hasEncodingLoss(oldType: DataType, newType: DataType): boolean {
+  if (newType === 'float32') {
+    return false;
+  }
+  if (newType === 'int32' && oldType !== 'float32') {
+    return false;
+  }
+  if (newType === 'bool' && oldType === 'bool') {
+    return false;
+  }
+  return true;
 }

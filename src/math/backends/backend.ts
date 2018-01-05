@@ -18,21 +18,21 @@
 
 import {Conv2DInfo} from '../conv_util';
 // tslint:disable-next-line:max-line-length
-import {Array1D, Array2D, Array3D, Array4D, DataType, DataTypeMap, NDArray} from '../ndarray';
+import {Array1D, Array2D, Array3D, Array4D, DataType, DataTypeMap, NDArray, Rank} from '../ndarray';
 import {SumTypes} from '../types';
 import {MatrixOrientation} from './types/matmul';
 
 export interface NDArrayStorage {
-  read<T extends DataType>(id: number): Promise<DataTypeMap[T]>;
-  readSync<T extends DataType>(id: number): DataTypeMap[T];
-  disposeData(id: number): void;
-  write<T extends DataType>(
-      id: number, values: DataTypeMap[T], dtype: T, shape: number[]): void;
+  read<D extends DataType>(dataId: number): Promise<DataTypeMap[D]>;
+  readSync<D extends DataType>(dataId: number): DataTypeMap[D];
+  disposeData(dataId: number): void;
+  write<D extends DataType>(dataId: number, values: DataTypeMap[D]): void;
   writePixels(
-      id: number,
+      dataId: number,
       pixels: ImageData|HTMLImageElement|HTMLCanvasElement|HTMLVideoElement,
       numChannels: number): void;
   time(query: () => NDArray): Promise<number>;
+  register(dataId: number, shape: number[], dtype: DataType): void;
 }
 
 /**
@@ -64,27 +64,29 @@ export interface MathBackend extends NDArrayStorage {
 
   neg<T extends NDArray>(a: T): T;
 
-  add<G extends DataType>(a: NDArray<G>, b: NDArray<G>): NDArray<G>;
-  subtract<G extends DataType>(a: NDArray<G>, b: NDArray<G>): NDArray<G>;
-  multiply<G extends DataType>(a: NDArray<G>, b: NDArray<G>): NDArray<G>;
-  divide<G extends DataType>(a: NDArray<G>, b: NDArray<G>): NDArray<'float32'>;
+  add<D extends DataType>(a: NDArray<D>, b: NDArray<D>): NDArray<D>;
+  subtract<D extends DataType>(a: NDArray<D>, b: NDArray<D>): NDArray<D>;
+  multiply<D extends DataType>(a: NDArray<D>, b: NDArray<D>): NDArray<D>;
+  divide<D extends DataType>(a: NDArray<D>, b: NDArray<D>): NDArray<'float32'>;
 
-  sum<T extends DataType>(x: NDArray<T>, axes: number[]): NDArray<SumTypes[T]>;
+  sum<D extends DataType>(x: NDArray<D>, axes: number[]): NDArray<SumTypes[D]>;
 
   argMin(x: NDArray, axes: number[]): NDArray<'int32'>;
   argMax(x: NDArray, axes: number[]): NDArray<'int32'>;
 
   equal(a: NDArray, b: NDArray): NDArray<'bool'>;
-
+  notEqual(a: NDArray, b: NDArray): NDArray<'bool'>;
   topKValues<D extends DataType, T extends NDArray<D>>(x: T, k: number):
       Array1D<D>;
   topKIndices(x: NDArray, k: number): Array1D<'int32'>;
 
-  min<G extends DataType>(x: NDArray<G>, axes: number[]): NDArray<G>;
-  max<G extends DataType>(x: NDArray<G>, axes: number[]): NDArray<G>;
+  min<D extends DataType>(x: NDArray<D>, axes: number[]): NDArray<D>;
+  minimum<D extends DataType>(a: NDArray<D>, b: NDArray<D>): NDArray<D>;
+
+  max<D extends DataType>(x: NDArray<D>, axes: number[]): NDArray<D>;
+  maximum<D extends DataType>(a: NDArray<D>, b: NDArray<D>): NDArray<D>;
 
   ceil<T extends NDArray>(x: T): T;
-
   floor<T extends NDArray>(x: T): T;
 
   pow<T extends NDArray>(a: T, b: NDArray<'int32'>): T;
@@ -101,6 +103,7 @@ export interface MathBackend extends NDArrayStorage {
   leakyRelu<T extends NDArray>(x: T, alpha: number): T;
   prelu<T extends NDArray>(x: T, alpha: T): T;
   preluDer<T extends NDArray>(x: T, alpha: T): T;
+  int<R extends Rank>(x: NDArray<DataType, R>): NDArray<'int32', R>;
 
   clip<T extends NDArray>(x: T, min: number, max: number): T;
 
