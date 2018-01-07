@@ -14,26 +14,25 @@
  * limitations under the License.
  * =============================================================================
  */
-import * as util from './util';
-import { layersToDagEdges, layersToDagNodes } from './dag';
-import { getAllVariables, getPreprocessOffset, getPreprocessDim, convBlobToNDArray } from './blob';
-import { performMathOp } from './layer';
-
-import { caffe } from 'caffe-proto';
+import {caffe} from 'caffe-proto';
 import * as dag from 'dag-iterator';
-import { Model, Array1D, Array3D, NDArray, ENV } from 'deeplearn';
+import {Array1D, Array3D, ENV, Model, NDArray} from 'deeplearn';
+// tslint:disable-next-line:max-line-length
+import {convBlobToNDArray, getAllVariables, getPreprocessDim, getPreprocessOffset} from './blob';
+import {layersToDagEdges, layersToDagNodes} from './dag';
+import {performMathOp} from './layer';
+import * as util from './util';
 
 export class CaffeModel implements Model {
-
   /**
    * Model weights per layer
    */
-  protected variables: { [varName: string]: NDArray[] };
+  protected variables: {[varName: string]: NDArray[]};
 
   /**
    * Preprocessing Offset
    */
-  protected preprocessOffset: Array1D | Array3D;
+  protected preprocessOffset: Array1D|Array3D;
 
   /**
    * Preprocessing Dimensions
@@ -43,7 +42,7 @@ export class CaffeModel implements Model {
   /**
    * Model DAG Nodes
    */
-  private nodes: dag.INode<caffe.ILayerParameter>[];
+  private nodes: Array<dag.INode<caffe.ILayerParameter>>;
 
   /**
    * Model DAG Edges
@@ -56,14 +55,14 @@ export class CaffeModel implements Model {
    * @param prototxtUrl url to the prototxt file
    */
   constructor(
-    private caffemodelUrl: string, private prototxtUrl: string, private meanBinaryprotoUrl?: string) {
-  }
+      private caffemodelUrl: string, private prototxtUrl: string,
+      private meanBinaryprotoUrl?: string) {}
 
   /**
    * Set the preprocessing offset
    * @param offset training mean
    */
-  setPreprocessOffset(offset: Array1D | Array3D) {
+  setPreprocessOffset(offset: Array1D|Array3D) {
     this.preprocessOffset = offset;
   }
 
@@ -79,7 +78,7 @@ export class CaffeModel implements Model {
    * Set the nodes of the model graph
    * @param nodes array of nodes
    */
-  setNodes(nodes: dag.INode<caffe.ILayerParameter>[]) {
+  setNodes(nodes: Array<dag.INode<caffe.ILayerParameter>>) {
     this.nodes = nodes;
   }
 
@@ -95,20 +94,17 @@ export class CaffeModel implements Model {
    * Load the model
    */
   load() {
-    var tasks = [];
+    const tasks = [];
 
     if (this.caffemodelUrl) {
       tasks.push(this.load_caffemodel(this.caffemodelUrl));
     }
-
     if (this.prototxtUrl) {
       tasks.push(this.load_prototxt(this.prototxtUrl));
     }
-
     if (this.meanBinaryprotoUrl) {
       tasks.push(this.load_binaryproto(this.meanBinaryprotoUrl));
     }
-
     return Promise.all(tasks);
   }
 
@@ -117,34 +113,32 @@ export class CaffeModel implements Model {
    */
   load_caffemodel(uri: string) {
     return util.fetchArrayBuffer(uri)
-      .then(util.parseCaffemodel)
-      .then((model) => {
-        this.variables = getAllVariables(model);
+        .then(util.parseCaffemodel)
+        .then((model) => {
+          this.variables = getAllVariables(model);
 
-        // read the cropping dimensions
-        const dim = getPreprocessDim(model);
-        if (dim) {
-          this.setPreprocessDim(dim);
-        }
+          // read the cropping dimensions
+          const dim = getPreprocessDim(model);
+          if (dim) {
+            this.setPreprocessDim(dim);
+          }
 
-        // read the training mean
-        const offset = getPreprocessOffset(model);
-        if (offset) {
-          this.setPreprocessOffset(offset as Array1D);
-        }
-      });
+          // read the training mean
+          const offset = getPreprocessOffset(model);
+          if (offset) {
+            this.setPreprocessOffset(offset as Array1D);
+          }
+        });
   }
 
   /**
    * Load the .prototxt file and parse it into DAG nodes and edges
    */
   load_prototxt(uri: string) {
-    return util.fetchText(uri)
-      .then(util.parsePrototxt)
-      .then((model) => {
-        this.setEdges(layersToDagEdges(model));
-        this.setNodes(layersToDagNodes(model));
-      });
+    return util.fetchText(uri).then(util.parsePrototxt).then((model) => {
+      this.setEdges(layersToDagEdges(model));
+      this.setNodes(layersToDagNodes(model));
+    });
   }
 
   /**
@@ -152,47 +146,51 @@ export class CaffeModel implements Model {
    */
   load_binaryproto(uri: string) {
     return util.fetchArrayBuffer(uri)
-      .then(util.parseBlob)
-      .then((trainingMean) => {
-        const offset: NDArray = convBlobToNDArray(trainingMean);
-        this.setPreprocessOffset(offset.as3D(offset.shape[0], offset.shape[1], offset.shape[2]));
-      });
+        .then(util.parseBlob)
+        .then((trainingMean) => {
+          const offset: NDArray = convBlobToNDArray(trainingMean);
+          this.setPreprocessOffset(
+              offset.as3D(offset.shape[0], offset.shape[1], offset.shape[2]));
+        });
   }
 
   predict(input: NDArray, untilLayer?: string): NDArray {
-
     const math = ENV.math;
 
     // Keep a map of named activations for rendering purposes.
-    const namedActivations: { [key: string]: NDArray } = {};
-    let currAct: NDArray | NDArray[] = input;
+    const namedActivations: {[key: string]: NDArray} = {};
+    let currAct: NDArray|NDArray[] = input;
 
-    dag.iterateDfs<caffe.ILayerParameter>(this.nodes, this.edges,
-      (layer: caffe.ILayerParameter, parents: caffe.ILayerParameter[], i: number, depth: number) => {
+    dag.iterateDfs<caffe.ILayerParameter>(
+        this.nodes, this.edges,
+        (layer: caffe.ILayerParameter, parents: caffe.ILayerParameter[],
+         i: number, depth: number) => {
+          if (i === 0) {
+            currAct = (currAct as Array3D).asType('float32');
 
-        if (i === 0) {
-          currAct = (currAct as Array3D).asType('float32');
-
-          if (this.preprocessDim) {
-            currAct = math.resizeBilinear3D(currAct as Array3D, [this.preprocessDim, this.preprocessDim]);
+            if (this.preprocessDim) {
+              currAct = math.resizeBilinear3D(
+                  currAct as Array3D, [this.preprocessDim, this.preprocessDim]);
+            }
+            if (this.preprocessOffset &&
+                this.preprocessOffset.dataSync().length > 0) {
+              currAct =
+                  math.subtract(currAct as Array3D, this.preprocessOffset) as
+                  Array3D;
+            }
+          } else if (parents.length === 1) {
+            currAct = namedActivations[parents[0].name];
+          } else if (parents.length > 1) {
+            currAct = parents.map((d) => namedActivations[d.name]);
           }
-          if (this.preprocessOffset && this.preprocessOffset.dataSync().length > 0) {
-            currAct = math.subtract(currAct as Array3D, this.preprocessOffset) as Array3D;
-          }
-        }
-        else if (parents.length === 1) {
-          currAct = namedActivations[parents[0].name];
-        }
-        else if (parents.length > 1) {
-          currAct = parents.map((d) => namedActivations[d.name]);
-        }
 
-        currAct = performMathOp(math, currAct, layer, this.variables[`${layer.name}`]);
+          currAct = performMathOp(
+              math, currAct, layer, this.variables[`${layer.name}`]);
 
-        namedActivations[layer.name] = currAct as NDArray;
-        console.log(layer.name, currAct.data());
-
-      }, untilLayer);
+          namedActivations[layer.name] = currAct as NDArray;
+          console.log(layer.name, currAct.data());
+        },
+        untilLayer);
 
     return currAct;
   }

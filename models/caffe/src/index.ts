@@ -14,13 +14,9 @@
  * limitations under the License.
  * =============================================================================
  */
-import * as util from './util';
 import * as blob from './blob';
 import * as layer from './layer';
+import * as util from './util';
 
 export {CaffeModel} from './model';
-export {
-  util,
-  blob,
-  layer
-};
+export {blob, layer, util};

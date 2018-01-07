@@ -1,29 +1,52 @@
-import { caffe } from 'caffe-proto';
-import { Array1D, Array3D, Array4D, NDArray, NDArrayMath } from 'deeplearn';
+import {caffe} from 'caffe-proto';
+import {Array1D, Array3D, Array4D, NDArray, NDArrayMath} from 'deeplearn';
 
 // tslint:disable-next-line:max-line-length
-export function getLayersFromModel(model: caffe.NetParameter): caffe.IV0LayerParameter[] | caffe.IV1LayerParameter[] {
-  return model.layer.length > 0 ? model.layer as caffe.IV0LayerParameter[]
-    : model.layers as caffe.IV1LayerParameter[];
+export function getLayersFromModel(model: caffe.NetParameter):
+    caffe.IV0LayerParameter[]|caffe.IV1LayerParameter[] {
+  return model.layer.length > 0 ? model.layer as caffe.IV0LayerParameter[] :
+                                  model.layers as caffe.IV1LayerParameter[];
 }
 
-function getNumericParam(param: number | number[], def: number) {
-  var p = Array.isArray(param) ? param[0] : param;
-  return p || def;
+function getNumericParam(param: number|number[], defaultValue: number) {
+  const p = Array.isArray(param) ? param[0] : param;
+  return p || defaultValue;
 }
 
-function getPoolType(poolType: string | number): number {
-  let finalPoolType;
-  if (typeof poolType == "number") {
-    return finalPoolType;
+function get1or2dParam(
+    param: number|number[], paramW: number, paramH: number,
+    defaultValue: number): number|[number, number] {
+  if (param) {
+    return param as [number, number];
+  } else if (paramW && paramH) {
+    return [paramW, paramH];
   }
-  else {
+  return defaultValue;
+}
+
+function getConvStride(param: caffe.ConvolutionParameter):
+    number|[number, number] {
+  return get1or2dParam(param.stride, param.strideW, param.strideH, 1);
+}
+
+function getPoolStride(param: caffe.PoolingParameter): number|[number, number] {
+  return get1or2dParam(param.stride, param.strideW, param.strideH, 1);
+}
+
+function getPoolKernel(param: caffe.PoolingParameter): number|[number, number] {
+  return get1or2dParam(param.kernelSize, param.kernelW, param.kernelH, 1);
+}
+
+function getPoolType(poolType: string|number): number {
+  if (typeof poolType === 'number') {
+    return poolType;
+  } else {
     switch (poolType.toLowerCase()) {
-      case "max":
+      case 'max':
         return caffe.PoolingParameter.PoolMethod.MAX;
-      case "ave":
+      case 'ave':
         return caffe.PoolingParameter.PoolMethod.AVE;
-      case "stochastic":
+      case 'stochastic':
         return caffe.PoolingParameter.PoolMethod.STOCHASTIC;
       default:
         throw TypeError(`Pool type ${poolType} is not implemented`);
@@ -31,9 +54,9 @@ function getPoolType(poolType: string | number): number {
   }
 }
 
-export function performMathOp(math: NDArrayMath, input: NDArray | NDArray[],
-  layer: caffe.ILayerParameter, blobs?: NDArray[]): NDArray {
-
+export function performMathOp(
+    math: NDArrayMath, input: NDArray|NDArray[], layer: caffe.ILayerParameter,
+    blobs?: NDArray[]): NDArray {
   switch (layer.type.toLowerCase()) {
     case 'input':
     case 'dropout':
@@ -42,10 +65,10 @@ export function performMathOp(math: NDArrayMath, input: NDArray | NDArray[],
     case 'fc':
     case 'innerproduct':
     case 'inner_product': {
-      const innerProductParam = caffe.InnerProductParameter.create(layer.innerProductParam);
+      const innerProductParam =
+          caffe.InnerProductParameter.create(layer.innerProductParam);
       const weights = blobs[0] as Array3D;
-
-      const x = (<Array3D>input).as1D();
+      const x = (input as Array3D).as1D();
       const W = weights.as2D(x.shape[0], innerProductParam.numOutput);
       const y = math.vectorTimesMatrix(x, W);
 
@@ -58,56 +81,78 @@ export function performMathOp(math: NDArrayMath, input: NDArray | NDArray[],
 
     case 'conv':
     case 'convolution': {
-      const convolutionParam = caffe.ConvolutionParameter.create(layer.convolutionParam);
-      const stride = getNumericParam(convolutionParam.stride, 1)
+      const convolutionParam =
+          caffe.ConvolutionParameter.create(layer.convolutionParam);
+      const stride = getConvStride(convolutionParam);
+
+      // TODO throw error if pad is number[] or padW and padH
+      // are defined. pad number[] is not supported in dljs
       const pad = getNumericParam(convolutionParam.pad, 0);
+      const dimRoundingMode = 'round';
 
+      // kernelSize is estimated from weights implicitly
       const weights = blobs[0] as Array4D;
-      const bias = convolutionParam.biasTerm !== false ? blobs[1].as1D() as Array1D
-        // Workaround until biasTerm = false is supported in math.conv2d
-        : Array1D.zeros([weights.shape[weights.shape.length - 1]]);
+      const bias = convolutionParam.biasTerm !== false ?
+          blobs[1].as1D() as Array1D :
+          null;
 
-      return math.conv2d(input as Array3D, weights, bias, stride, pad, 'round');
+      return math.conv2d(
+          input as Array3D, weights, bias, stride, pad, dimRoundingMode);
     }
 
     case 'pool':
     case 'pooling': {
       const poolingParam = caffe.PoolingParameter.create(layer.poolingParam);
-      const stride = getNumericParam(poolingParam.stride, 1)
-      const pad = getNumericParam(poolingParam.pad, 0);
-      let kernelSize = getNumericParam(poolingParam.kernelSize, 1)
+      const stride = getPoolStride(poolingParam);
 
+      // TODO throw error if pad is number[] or padW and padH
+      // are defined. pad number[] is not supported in dljs
+      const pad = getNumericParam(poolingParam.pad, 0);
+      const dimRoundingMode = 'ceil';
+
+      let kernelSize = getPoolKernel(poolingParam);
       if (poolingParam.globalPooling) {
-        kernelSize = (<Array3D>input).shape[0];
+        kernelSize = (input as Array3D).shape[0];
       }
 
       switch (getPoolType(poolingParam.pool)) {
         case caffe.PoolingParameter.PoolMethod.MAX:
-          return math.maxPool(input as Array3D, kernelSize, stride, pad, 'ceil');
+          return math.maxPool(
+              input as Array3D, kernelSize, stride, pad, dimRoundingMode);
 
         case caffe.PoolingParameter.PoolMethod.AVE:
-          return math.avgPool(input as Array3D, kernelSize, stride, pad, 'ceil');
+          return math.avgPool(
+              input as Array3D, kernelSize, stride, pad, dimRoundingMode);
 
         default:
-          throw TypeError(`Pooling type ${poolingParam.pool} is not implemented`);
+          throw TypeError(
+              `Pooling type ${poolingParam.pool} is not implemented`);
       }
     }
 
     case 'batchnorm': {
+      const bnParam = caffe.BatchNormParameter.create(layer.batchNormParam);
+      const eps = bnParam.eps;
       const mean = blobs[0] as Array3D;
       const variance = blobs[1] as Array3D;
 
-      return math.batchNormalization3D(input as Array3D, mean, variance);
+      return math.batchNormalization3D(input as Array3D, mean, variance, eps);
     }
 
     case 'lrn': {
       const lrnParam = caffe.LRNParameter.create(layer.lrnParam);
-      const k = lrnParam.k || 1;
-      const n = lrnParam.localSize || 5;
+      // params need to be converted to tf.lrn implementation
+      const radius = Math.floor(lrnParam.localSize / 2) || 5;
+      const bias = lrnParam.k / radius || 1;
       const alpha = lrnParam.alpha || 1;
       const beta = lrnParam.beta || 0.75;
+      const normRegion =
+          lrnParam.normRegion === caffe.LRNParameter.NormRegion.WITHIN_CHANNEL ?
+          'withinChannel' :
+          'acrossChannels';
 
-      return math.localResponseNormalization3D(input as Array3D, k, n, alpha, beta);
+      return math.localResponseNormalization3D(
+          input as Array3D, radius, bias, alpha, beta, normRegion);
     }
 
     case 'scale': {
@@ -124,8 +169,17 @@ export function performMathOp(math: NDArrayMath, input: NDArray | NDArray[],
       return out;
     }
 
+    case 'elu':
+      return math.elu(input as NDArray);
+
     case 'relu':
-      return math.relu(input as Array3D);
+      return math.relu(input as NDArray);
+
+    case 'tanh':
+      return math.tanh(input as NDArray);
+
+    case 'sigmoid':
+      return math.sigmoid(input as NDArray);
 
     case 'softmax':
       return math.softmax(input as NDArray);

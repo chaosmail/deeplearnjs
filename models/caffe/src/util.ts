@@ -17,15 +17,16 @@
 import {caffe} from 'caffe-proto';
 import * as prototxtParser from 'prototxt-parser';
 
+// tslint:disable-next-line:no-any
 export function isNotNull(val: any): boolean {
   return val !== undefined && val !== null;
 }
 
-export function fetchText(uri: string) : Promise<string> {
+export function fetchText(uri: string): Promise<string> {
   return fetch(new Request(uri)).then((res) => res.text());
 }
 
-export function fetchArrayBuffer(uri: string) : Promise<ArrayBuffer> {
+export function fetchArrayBuffer(uri: string): Promise<ArrayBuffer> {
   return fetch(new Request(uri)).then((res) => res.arrayBuffer());
 }
 
@@ -44,11 +45,13 @@ export function parsePrototxt(data: string) {
 
 // camelize string
 const camelize = (str: string) => {
-  const c = (m: string, i: number) => i === 0 ? m : m.charAt(0).toUpperCase() + m.slice(1);
-  return str.split('_').map(c).join("");
-}
+  const c = (m: string, i: number) =>
+      i === 0 ? m : m.charAt(0).toUpperCase() + m.slice(1);
+  return str.split('_').map(c).join('');
+};
 
 // convert object with snake case properties to camel case
+// tslint:disable-next-line:no-any
 function snakeToCamel(obj: any): any {
   // Check if obj is an array
   if (Array.isArray(obj)) {
@@ -56,12 +59,12 @@ function snakeToCamel(obj: any): any {
   }
   // check if obj is an object
   else if (obj === Object(obj)) {
-    for (var key in obj) {
+    for (const key in obj) {
       // skip loop if the property is from prototype
       if (!obj.hasOwnProperty(key)) continue;
-      let newKey = camelize(key);
+      const newKey = camelize(key);
       obj[newKey] = snakeToCamel(obj[key]);
-      if (newKey != key) {
+      if (newKey !== key) {
         delete obj[key];
       }
     }

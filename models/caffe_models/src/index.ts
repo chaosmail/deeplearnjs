@@ -14,8 +14,10 @@
  * limitations under the License.
  * =============================================================================
  */
-import * as util from './util';
 import * as dl from 'deeplearn';
 
-export {SqueezeNet, GoogLeNet, GoogLeNetBN, VGG16, NiN, AgeNet, GenderNet} from './models';
-export {util, dl};
+import * as util from './util';
+
+// tslint:disable-next-line:max-line-length
+export {AgeNet, GenderNet, GoogLeNet, GoogLeNetBN, NiN, SqueezeNet, VGG16} from './models';
+export {dl, util};
